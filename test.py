@@ -1,6 +1,10 @@
 from resources.readsettings import ReadSettings
 from autoprocess import sonarr
+from resources.log import getLogger
 import sys
 
+log = getLogger("Test")
 settings = ReadSettings()
-sonarr.processEpisode(sys.argv[1], settings, importMode="Copy")
+log.info("Initiating Test")
+log.debug(sys.argv[1])
+sonarr.processEpisode(sys.argv[1], settings, importMode="Copy", logger=log)
