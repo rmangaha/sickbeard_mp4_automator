@@ -10,19 +10,22 @@ from resources.metadata import MediaType
 from resources.mediaprocessor import MediaProcessor
 
 
-def downloadedMoviesScanInProgress(host, port, webroot, apikey, protocol, movieid, log):
+def downloadedMoviesScanInProgress(host, port, webroot, apikey, protocol, moviefile_sourcefolder, log):
     headers = {'X-Api-Key': apikey}
     url = protocol + host + ":" + str(port) + webroot + "/api/command"
     log.debug("Requesting list of commands in process")
     r = requests.get(url, headers=headers)
     commands = r.json()
     log.debug(commands)
+    log.debug(moviefile_sourcefolder)
     for c in commands:
-        if c.get('name') == "DownloadedMoviesScan" and 'body' in c:
-            for f in c['body'].get('files', []):
-                if f.get('movieId') == movieid:
-                    log.debug("A DownloadedMoviesScan for this movie %d is already in process, waiting for further queues will not work" % (movieid))
+        if c.get('name') == "DownloadedMoviesScan":
+            try:
+                if c['body']['path'] == moviefile_sourcefolder:
+                    log.debug("Found a matching path scan in progress %s" % (moviefile_sourcefolder))
                     return True
+            except:
+                pass
     return False
 
 
@@ -146,6 +149,7 @@ original = os.environ.get('radarr_moviefile_scenename')
 imdbid = os.environ.get('radarr_movie_imdbid')
 tmdbid = os.environ.get('radarr_movie_tmdbid')
 movieid = int(os.environ.get('radarr_movie_id'))
+moviefile_sourcefolder = os.environ.get('radarr_moviefile_sourcefolder')
 
 mp = MediaProcessor(settings)
 
@@ -189,7 +193,11 @@ try:
 
                 subs = backupSubs(success[0], mp, log)
 
-                if rescanAndWait(host, port, webroot, apikey, protocol, movieid, log):
+                if downloadedMoviesScanInProgress(host, port, webroot, apikey, protocol, moviefile_sourcefolder, log):
+                    log.info("DownloadedMoviesScan command is in process for this movie, cannot wait for rescan but will queue")
+                    rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=0)
+                    renameMovie(host, port, webroot, apikey, protocol, movieid, log)
+                elif rescanAndWait(host, port, webroot, apikey, protocol, movieid, log):
                     log.info("Rescan command completed")
 
                     movieinfo = getMovieInformation(host, port, webroot, apikey, protocol, movieid, log)

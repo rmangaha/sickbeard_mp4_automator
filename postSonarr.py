@@ -198,7 +198,9 @@ try:
                 subs = backupSubs(success[0], mp, log)
 
                 if downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, episodefile_sourcefolder, log):
-                    log.info("DownloadEpisodeScan command is in process for this episode, cannot rescan")
+                    log.info("DownloadedEpisodesScan command is in process for this episode, cannot wait for rescan but will queue")
+                    rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log, retries=0)
+                    renameSeries(host, port, webroot, apikey, protocol, seriesid, log)
                 elif rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log):
                     log.info("Rescan command completed")
 
