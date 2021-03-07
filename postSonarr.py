@@ -10,19 +10,22 @@ from resources.metadata import MediaType
 from resources.mediaprocessor import MediaProcessor
 
 
-def downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, seriesid, episodeid, log):
+def downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, episodefile_sourcefolder, log):
     headers = {'X-Api-Key': apikey}
     url = protocol + host + ":" + str(port) + webroot + "/api/command"
     log.debug("Requesting list of commands in process")
     r = requests.get(url, headers=headers)
     commands = r.json()
     log.debug(commands)
+    log.debug(episodefile_sourcefolder)
     for c in commands:
-        if c.get('name') == "DownloadedEpisodesScan" and 'body' in c:
-            for f in c['body'].get('files', []):
-                if f.get('seriesId') == seriesid and episodeid in f.get('episodeIds', []):
-                    log.debug("A DownloadedEpisodesScan for this series %d episode %d is already in process, waiting for further queues will not work" % (seriesid, episodeid))
+        if c.get('name') == "DownloadedEpisodesScan":
+            try:
+                if c['body']['path'] == episodefile_sourcefolder:
+                    log.debug("Found a matching path scan in progress %s" % (episodefile_sourcefolder))
                     return True
+            except:
+                pass
     return False
 
 
@@ -145,7 +148,7 @@ tvdb_id = int(os.environ.get('sonarr_series_tvdbid'))
 imdb_id = os.environ.get('sonarr_series_imdbid')
 season = int(os.environ.get('sonarr_episodefile_seasonnumber'))
 seriesid = int(os.environ.get('sonarr_series_id'))
-episodefileid = int(os.environ.get('sonarr_episodefile_id'))
+episodefile_sourcefolder = os.environ.get('sonarr_episodefile_sourcefolder')
 
 try:
     episode = int(os.environ.get('sonarr_episodefile_episodenumbers'))
@@ -194,7 +197,7 @@ try:
 
                 subs = backupSubs(success[0], mp, log)
 
-                if downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, seriesid, episodefileid, log):
+                if downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, episodefile_sourcefolder, log):
                     log.info("DownloadEpisodeScan command is in process for this episode, cannot rescan")
                 elif rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log):
                     log.info("Rescan command completed")
