@@ -10,6 +10,22 @@ from resources.metadata import MediaType
 from resources.mediaprocessor import MediaProcessor
 
 
+def downloadedMoviesScanInProgress(host, port, webroot, apikey, protocol, movieid, log):
+    headers = {'X-Api-Key': apikey}
+    url = protocol + host + ":" + str(port) + webroot + "/api/command"
+    log.debug("Requesting list of commands in process")
+    r = requests.get(url, headers=headers)
+    commands = r.json()
+    log.debug(commands)
+    for c in commands:
+        if c.get('name') == "DownloadedMoviesScan" and 'body' in c:
+            for f in c['body'].get('files', []):
+                if f.get('movieId') == movieid:
+                    log.debug("A DownloadedMoviesScan for this movie %d is already in process, waiting for further queues will not work" % (movieid))
+                    return True
+    return False
+
+
 def rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=6, delay=10):
     headers = {'X-Api-Key': apikey}
     # First trigger rescan
