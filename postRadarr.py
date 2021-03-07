@@ -25,9 +25,15 @@ def rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=6
     log.debug(str(rstate))
     log.info("Radarr response Rescan command: ID %d %s." % (rstate['id'], rstate['state']))
 
+    url = protocol + host + ":" + str(port) + webroot + "/api/command"
+    log.debug("Requesting list of commands in process")
+    r = requests.get(url, headers=headers)
+    commands = r.json()
+    log.debug(commands)
+
     # Then wait for it to finish
     url = protocol + host + ":" + str(port) + webroot + "/api/command/" + str(rstate['id'])
-    log.info("Waiting rescan to complete")
+    log.info("Requesting command status from Sonarr for command ID %d." % rstate['id'])
     r = requests.get(url, headers=headers)
     command = r.json()
     attempts = 0
