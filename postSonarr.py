@@ -4,16 +4,68 @@ import sys
 import requests
 import time
 import shutil
+
+from requests.api import head
 from resources.log import getLogger
 from resources.readsettings import ReadSettings
 from resources.metadata import MediaType
 from resources.mediaprocessor import MediaProcessor
 
 
-def downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, episodefile_sourcefolder, log):
-    headers = {'X-Api-Key': apikey}
-    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
-    log.debug("Requesting list of commands in process")
+# Sonarr API functions
+def rescanAndWait(baseURL, headers, seriesid, log, retries=6, delay=10):
+    url = baseURL + "/api/v3/command"
+    log.debug("Queueing rescan command to Sonarr via %s." % url)
+
+    # First trigger rescan
+    payload = {'name': 'RescanSeries', 'seriesId': seriesid}
+    log.debug(str(payload))
+
+    r = requests.post(url, json=payload, headers=headers)
+    rstate = r.json()
+    try:
+        rstate = rstate[0]
+    except:
+        pass
+    log.debug(str(rstate))
+    log.info("Sonarr response from RescanSeries command: ID %d %s." % (rstate['id'], rstate['status']))
+
+    # Then wait for it to finish
+    url = baseURL + "/api/v3/command/" + str(rstate['id'])
+    log.debug("Requesting command status from Sonarr for command ID %d." % rstate['id'])
+    r = requests.get(url, headers=headers)
+    command = r.json()
+
+    attempts = 0
+    while command['status'].lower() not in ['complete', 'completed'] and attempts < retries:
+        log.debug("Status: %s." % (command['status']))
+        time.sleep(delay)
+        r = requests.get(url, headers=headers)
+        command = r.json()
+        attempts += 1
+    log.debug(str(command))
+    log.debug("Final status: %s." % (command['status']))
+    return command['status'].lower() in ['complete', 'completed']
+
+
+def renameSeriesRequest(baseURL, headers, seriesid, log):
+    url = baseURL + "/api/v3/command"
+    log.debug("Queueing rename command to Sonarr via %s." % url)
+
+    payload = {'name': 'RenameSeries', 'seriesIds': [seriesid]}
+    log.debug(str(payload))
+    r = requests.post(url, json=payload, headers=headers)
+    rstate = r.json()
+    try:
+        rstate = rstate[0]
+    except:
+        pass
+    return rstate
+
+
+def downloadedEpisodesScanInProgress(baseURL, headers, episodefile_sourcefolder, log):
+    url = baseURL + "/api/v3/command"
+    log.debug("Requesting commands in process from Sonarr via %s." % url)
     r = requests.get(url, headers=headers)
     commands = r.json()
     log.debug(commands)
@@ -29,48 +81,40 @@ def downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, epis
     return False
 
 
-def rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log, retries=6, delay=10):
-    headers = {'X-Api-Key': apikey}
-    # First trigger rescan
-    payload = {'name': 'RescanSeries', 'seriesId': seriesid}
-    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
-    r = requests.post(url, json=payload, headers=headers)
-    rstate = r.json()
-    try:
-        rstate = rstate[0]
-    except:
-        pass
-    log.debug(str(payload))
-    log.debug(str(rstate))
-    log.info("Sonarr response RescanSeries command: ID %d %s." % (rstate['id'], rstate['status']))
-
-    # Then wait for it to finish
-    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command/" + str(rstate['id'])
-    log.info("Requesting command status from Sonarr for command ID %d." % rstate['id'])
-    r = requests.get(url, headers=headers)
-    command = r.json()
-    attempts = 0
-    while command['status'].lower() not in ['complete', 'completed'] and attempts < retries:
-        log.info("Status: %s." % (command['status']))
-        time.sleep(delay)
-        r = requests.get(url, headers=headers)
-        command = r.json()
-        attempts += 1
-    log.debug(str(command))
-    log.info("Final status: %s." % (command['status']))
-    return command['status'].lower() in ['complete', 'completed']
-
-
-def getEpisodeInformation(host, port, webroot, apikey, protocol, episodeid, log):
-    headers = {'X-Api-Key': apikey}
-    url = protocol + host + ":" + str(port) + webroot + "/api/v3/episode/" + str(episodeid)
-    log.info("Requesting updated episode information from Sonarr for episode ID %d." % episodeid)
+def getEpisode(baseURL, headers, episodeid, log):
+    url = baseURL + "/api/v3/episode/" + str(episodeid)
+    log.debug("Requesting episode from Sonarr via %s." % url)
     r = requests.get(url, headers=headers)
     payload = r.json()
     log.debug(str(payload))
     return payload
 
 
+def updateEpisode(baseURL, headers, new, episodeid, log):
+    url = baseURL + "/api/v3/episode/" + str(episodeid)
+    log.debug("Requesting episode update to Sonarr via %s." % url)
+    r = requests.put(url, json=new, headers=headers)
+    payload = r.json()
+    return payload
+
+
+def getEpisodeFile(baseURL, headers, episodefileid, log):
+    url = baseURL + "/api/v3/moviefile/" + str(episodefileid)
+    log.debug("Requesting moviefile from Sonarr for moviefile via %s." % url)
+    r = requests.get(url, headers=headers)
+    payload = r.json()
+    return payload
+
+
+def updateEpisodeFile(baseURL, headers, new, episodefileid, log):
+    url = baseURL + "/api/v3/moviefile/" + str(episodefileid)
+    log.debug("Requesting moviefile update to Sonarr via %s." % url)
+    r = requests.put(url, json=new, headers=headers)
+    payload = r.json()
+    return payload
+
+
+# Rename functions
 def renameFile(inputfile, log):
     filename, fileext = os.path.splitext(inputfile)
     outputfile = "%s.rnm%s" % (filename, fileext)
@@ -83,20 +127,11 @@ def renameFile(inputfile, log):
     return outputfile
 
 
-def renameSeries(host, port, webroot, apikey, protocol, seriesid, log):
-    headers = {'X-Api-Key': apikey}
-    # First trigger rescan
-    payload = {'name': 'RenameSeries', 'seriesIds': [seriesid]}
-    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
-    r = requests.post(url, json=payload, headers=headers)
-    rstate = r.json()
-    try:
-        rstate = rstate[0]
-    except:
-        pass
-    log.debug(str(payload))
-    log.debug(str(rstate))
-    log.info("Sonarr response RenameSeries command: ID %d %s." % (rstate['id'], rstate['status']))
+def restoreSceneName(inputfile, scenename):
+    if scenename:
+        directory = os.path.dirname(inputfile)
+        extension = os.path.splitext(inputfile)[1]
+        os.rename(inputfile, os.path.join(directory, "%s%s" % (scenename, extension)))
 
 
 def backupSubs(inputpath, mp, log, extension=".backup"):
@@ -127,13 +162,6 @@ def restoreSubs(subs, log):
             log.exception("Unable to restore %s, deleting." % (k))
 
 
-def restoreSceneName(inputfile, scenename):
-    if scenename:
-        directory = os.path.dirname(inputfile)
-        extension = os.path.splitext(inputfile)[1]
-        os.rename(inputfile, os.path.join(directory, "%s%s" % (scenename, extension)))
-
-
 log = getLogger("SonarrPostProcess")
 
 log.info("Sonarr extra script post processing started.")
@@ -153,6 +181,7 @@ try:
     season = int(os.environ.get('sonarr_episodefile_seasonnumber'))
     seriesid = int(os.environ.get('sonarr_series_id'))
     scenename = os.environ.get('sonarr_episodefile_scenename')
+    releasegroup = os.environ.get('sonarr_episodefile_releasegroup')
     episodefile_id = os.environ.get('sonarr_episodefile_id')
     episodefile_sourcefolder = os.environ.get('sonarr_episodefile_sourcefolder')
     episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
@@ -191,34 +220,32 @@ try:
             apikey = settings.Sonarr['apikey']
             ssl = settings.Sonarr['ssl']
             protocol = "https://" if ssl else "http://"
+            baseURL = protocol + host + ":" + str(port) + webroot
 
-            log.debug("Sonarr host: %s." % host)
-            log.debug("Sonarr port: %s." % port)
-            log.debug("Sonarr webroot: %s." % webroot)
+            log.debug("Sonarr baseURL: %s." % baseURL)
             log.debug("Sonarr apikey: %s." % apikey)
-            log.debug("Sonarr protocol: %s." % protocol)
 
             if apikey != '':
                 headers = {'X-Api-Key': apikey}
 
                 subs = backupSubs(success[0], mp, log)
 
-                if downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, episodefile_sourcefolder, log):
+                if downloadedEpisodesScanInProgress(baseURL, headers, episodefile_sourcefolder, log):
                     log.info("DownloadedEpisodesScan command is in process for this episode, cannot wait for rescan but will queue")
-                    rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log, retries=0)
-                    renameSeries(host, port, webroot, apikey, protocol, seriesid, log)
-                elif rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log):
+                    rescanAndWait(baseURL, headers, seriesid, log, retries=0)
+                    renameSeriesRequest(baseURL, headers, seriesid, log)
+                elif rescanAndWait(baseURL, headers, seriesid, log):
                     log.info("Rescan command completed")
 
-                    sonarrepinfo = getEpisodeInformation(host, port, webroot, apikey, protocol, episodeid, log)
+                    sonarrepinfo = getEpisode(baseURL, headers, episodeid, log)
                     if not sonarrepinfo:
                         log.error("No valid episode information found, aborting.")
                         sys.exit(1)
 
                     if not sonarrepinfo.get('hasFile'):
                         log.warning("Rescanned episode does not have a file, attempting second rescan.")
-                        if rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log):
-                            sonarrepinfo = getEpisodeInformation(host, port, webroot, apikey, protocol, episodeid, log)
+                        if rescanAndWait(baseURL, headers, seriesid, log):
+                            sonarrepinfo = getEpisode(baseURL, headers, episodeid, log)
                             if not sonarrepinfo:
                                 log.error("No valid episode information found, aborting.")
                                 sys.exit(1)
@@ -235,22 +262,35 @@ try:
                     if len(subs) > 0:
                         log.debug("Restoring %d subs and triggering a final rescan." % (len(subs)))
                         restoreSubs(subs, log)
-                        rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log)
+                        rescanAndWait(baseURL, headers, seriesid, log)
 
                     # Then set that episode to monitored
-                    sonarrepinfo['monitored'] = True
-                    log.debug("Sending PUT request with following payload:")
-                    log.debug(str(sonarrepinfo))
+                    try:
+                        sonarrepinfo['monitored'] = True
+                        sonarrepinfo = updateEpisode(baseURL, headers, sonarrepinfo, episodeid, log)
+                        log.info("Sonarr monitoring information updated for episode %s." % sonarrepinfo['title'])
+                    except:
+                        log.exception("Failed to restore monitored status to episode.")
 
-                    url = protocol + host + ":" + str(port) + webroot + "/api/episode/" + str(sonarrepinfo['id'])
-                    r = requests.put(url, json=sonarrepinfo, headers=headers)
-                    success = r.json()
+                    '''
+                    if scenename or releasegroup:
+                        log.debug("Trying to restore scene information.")
+                        try:
+                            mf = getEpisodeFile(baseURL, headers, sonarrepinfo['episodeFile']['id'], log)
+                            mf['sceneName'] = scenename
+                            mf['releaseGroup'] = releasegroup
+                            mf = updateEpisodeFile(baseURL, headers, mf, sonarrepinfo['episodeFile']['id'], log)
+                            log.debug("Restored releaseGroup to %s." % mf.get('releaseGroup'))
+                        except:
+                            log.exception("Unable to restore scene information.")
+                    '''
 
-                    log.debug("PUT request returned:")
-                    log.debug(str(success))
-                    log.info("Sonarr monitoring information updated for episode %s." % success['title'])
-
-                    renameSeries(host, port, webroot, apikey, protocol, seriesid, log)
+                    # Now a final rename step to ensure all release / codec information is accurate
+                    try:
+                        rename = renameSeriesRequest(baseURL, headers, seriesid, log)
+                        log.info("Sonarr response RenameSeries command: ID %d %s." % (rename['id'], rename['status']))
+                    except:
+                        log.exception("Failed to trigger Sonarr rename.")
                 else:
                     log.error("Rescan command timed out")
                     sys.exit(1)
