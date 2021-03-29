@@ -145,25 +145,29 @@ settings = ReadSettings()
 
 log.debug(os.environ)
 
-inputfile = os.environ.get('sonarr_episodefile_path')
-original = os.environ.get('sonarr_episodefile_scenename')
-tvdb_id = int(os.environ.get('sonarr_series_tvdbid'))
-imdb_id = os.environ.get('sonarr_series_imdbid')
-season = int(os.environ.get('sonarr_episodefile_seasonnumber'))
-seriesid = int(os.environ.get('sonarr_series_id'))
-scenename = os.environ.get('sonarr_episodefile_scenename')
-episodefile_id = os.environ.get('sonarr_episodefile_id')
-episodefile_sourcefolder = os.environ.get('sonarr_episodefile_sourcefolder')
-
 try:
-    episode = int(os.environ.get('sonarr_episodefile_episodenumbers'))
-except:
-    episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
+    inputfile = os.environ.get('sonarr_episodefile_path')
+    original = os.environ.get('sonarr_episodefile_scenename')
+    tvdb_id = int(os.environ.get('sonarr_series_tvdbid'))
+    imdb_id = os.environ.get('sonarr_series_imdbid')
+    season = int(os.environ.get('sonarr_episodefile_seasonnumber'))
+    seriesid = int(os.environ.get('sonarr_series_id'))
+    scenename = os.environ.get('sonarr_episodefile_scenename')
+    episodefile_id = os.environ.get('sonarr_episodefile_id')
+    episodefile_sourcefolder = os.environ.get('sonarr_episodefile_sourcefolder')
 
-try:
-    episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs'))
+    try:
+        episode = int(os.environ.get('sonarr_episodefile_episodenumbers'))
+    except:
+        episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
+
+    try:
+        episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs'))
+    except:
+        episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs').split(",")[0])
 except:
-    episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs').split(",")[0])
+    log.exception("Error setting up environment variables")
+    sys.exit(1)
 
 mp = MediaProcessor(settings)
 
