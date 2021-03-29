@@ -12,7 +12,7 @@ from resources.mediaprocessor import MediaProcessor
 
 def downloadedMoviesScanInProgress(host, port, webroot, apikey, protocol, moviefile_sourcefolder, log):
     headers = {'X-Api-Key': apikey}
-    url = protocol + host + ":" + str(port) + webroot + "/api/command"
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
     log.debug("Requesting list of commands in process")
     r = requests.get(url, headers=headers)
     commands = r.json()
@@ -33,7 +33,7 @@ def rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=6
     headers = {'X-Api-Key': apikey}
     # First trigger rescan
     payload = {'name': 'RescanMovie', 'movieId': movieid}
-    url = protocol + host + ":" + str(port) + webroot + "/api/command"
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
     r = requests.post(url, json=payload, headers=headers)
     rstate = r.json()
     try:
@@ -45,7 +45,7 @@ def rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=6
     log.info("Radarr response Rescan command: ID %d %s." % (rstate['id'], rstate['state']))
 
     # Then wait for it to finish
-    url = protocol + host + ":" + str(port) + webroot + "/api/command/" + str(rstate['id'])
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command/" + str(rstate['id'])
     log.info("Requesting command status from Sonarr for command ID %d." % rstate['id'])
     r = requests.get(url, headers=headers)
     command = r.json()
@@ -63,11 +63,29 @@ def rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=6
 
 def getMovieInformation(host, port, webroot, apikey, protocol, movieid, log):
     headers = {'X-Api-Key': apikey}
-    url = protocol + host + ":" + str(port) + webroot + "/api/movie/" + str(movieid)
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/movie/" + str(movieid)
     log.info("Requesting updated information from Radarr for movie ID %d." % movieid)
     r = requests.get(url, headers=headers)
     payload = r.json()
     log.debug(str(payload))
+    return payload
+
+
+def getMovieFile(host, port, webroot, apikey, protocol, moviefileid, log):
+    headers = {'X-Api-Key': apikey}
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/moviefile/" + str(moviefileid)
+    log.info("Requesting information from Radarr for moviefile ID %d." % moviefileid)
+    r = requests.get(url, headers=headers)
+    payload = r.json()
+    return payload
+
+
+def updateMovieFile(new, host, port, webroot, apikey, protocol, moviefileid, log):
+    headers = {'X-Api-Key': apikey}
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/moviefile/" + str(moviefileid)
+    log.info("Requesting update from Radarr for moviefile ID %d." % moviefileid)
+    r = requests.put(url, json=new, headers=headers)
+    payload = r.json()
     return payload
 
 
@@ -156,7 +174,7 @@ try:
     releasegroup = os.environ.get('radarr_moviefile_releasegroup')
     moviefile_sourcefolder = os.environ.get('radarr_moviefile_sourcefolder')
 except:
-    log.exception("Error setting up environment variables")
+    log.exception("Error reading environment variables")
     sys.exit(1)
 
 mp = MediaProcessor(settings)
@@ -245,6 +263,15 @@ try:
                     log.debug("PUT request returned:")
                     log.debug(str(success))
                     log.info("Radarr monitoring information updated for movie %s." % success['title'])
+
+                    try:
+                        mf = getMovieFile(host, port, webroot, apikey, protocol, movieinfo['movieFile']['id'], log)
+                        mf['sceneName'] = scenename
+                        mf['releaseGroup'] = releasegroup
+                        mf = updateMovieFile(mf, host, port, webroot, apikey, protocol, movieinfo['movieFile']['id'], log)
+                        log.debug("Restored releaseGroup to %s." % mf.get('releaseGroup'))
+                    except:
+                        log.exception("Unable to restore release/scene information")
 
                     renameMovie(host, port, webroot, apikey, protocol, movieid, log)
                 else:
