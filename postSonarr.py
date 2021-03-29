@@ -63,16 +63,12 @@ def rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log, retries=
 
 def getEpisodeInformation(host, port, webroot, apikey, protocol, episodeid, log):
     headers = {'X-Api-Key': apikey}
-    url = protocol + host + ":" + str(port) + webroot + "/api/episode?seriesId=" + str(seriesid)
-    log.info("Requesting updated episode information from Sonarr for series ID %d." % seriesid)
+    url = protocol + host + ":" + str(port) + webroot + "/api/episode/" + str(episodeid)
+    log.info("Requesting updated episode information from Sonarr for episode ID %d." % episodeid)
     r = requests.get(url, headers=headers)
     payload = r.json()
     log.debug(str(payload))
-    sonarrepinfo = None
-    for ep in payload:
-        if int(ep['episodeNumber']) == episode and int(ep['seasonNumber']) == season:
-            return ep
-    return None
+    return payload
 
 
 def renameFile(inputfile, log):
@@ -131,6 +127,13 @@ def restoreSubs(subs, log):
             log.exception("Unable to restore %s, deleting." % (k))
 
 
+def restoreSceneName(inputfile, scenename):
+    if scenename:
+        directory = os.path.dirname(inputfile)
+        extension = os.path.splitext(inputfile)[1]
+        os.rename(inputfile, os.path.join(directory, "%s%s" % (scenename, extension)))
+
+
 log = getLogger("SonarrPostProcess")
 
 log.info("Sonarr extra script post processing started.")
@@ -148,12 +151,11 @@ tvdb_id = int(os.environ.get('sonarr_series_tvdbid'))
 imdb_id = os.environ.get('sonarr_series_imdbid')
 season = int(os.environ.get('sonarr_episodefile_seasonnumber'))
 seriesid = int(os.environ.get('sonarr_series_id'))
+scenename = os.environ.get('sonarr_episodefile_scenename')
+episodefile_id = os.environ.get('sonarr_episodefile_id')
 episodefile_sourcefolder = os.environ.get('sonarr_episodefile_sourcefolder')
-
-try:
-    episode = int(os.environ.get('sonarr_episodefile_episodenumbers'))
-except:
-    episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
+episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
+episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs').split(",")[0])
 
 mp = MediaProcessor(settings)
 
@@ -204,7 +206,7 @@ try:
                 elif rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log):
                     log.info("Rescan command completed")
 
-                    sonarrepinfo = getEpisodeInformation(host, port, webroot, apikey, protocol, seriesid, log)
+                    sonarrepinfo = getEpisodeInformation(host, port, webroot, apikey, protocol, episodeid, log)
                     if not sonarrepinfo:
                         log.error("No valid episode information found, aborting.")
                         sys.exit(1)
@@ -212,7 +214,7 @@ try:
                     if not sonarrepinfo.get('hasFile'):
                         log.warning("Rescanned episode does not have a file, attempting second rescan.")
                         if rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log):
-                            sonarrepinfo = getEpisodeInformation(host, port, webroot, apikey, protocol, seriesid, log)
+                            sonarrepinfo = getEpisodeInformation(host, port, webroot, apikey, protocol, episodeid, log)
                             if not sonarrepinfo:
                                 log.error("No valid episode information found, aborting.")
                                 sys.exit(1)
