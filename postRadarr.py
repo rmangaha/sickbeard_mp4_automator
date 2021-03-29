@@ -21,7 +21,7 @@ def downloadedMoviesScanInProgress(host, port, webroot, apikey, protocol, movief
     for c in commands:
         if c.get('name') == "DownloadedMoviesScan":
             try:
-                if c['body']['path'] == moviefile_sourcefolder and c['state'] == 'started':
+                if c['body']['path'] == moviefile_sourcefolder and c['status'] == 'started':
                     log.debug("Found a matching path scan in progress %s" % (moviefile_sourcefolder))
                     return True
             except:
@@ -42,7 +42,7 @@ def rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=6
         pass
     log.debug(str(payload))
     log.debug(str(rstate))
-    log.info("Radarr response Rescan command: ID %d %s." % (rstate['id'], rstate['state']))
+    log.info("Radarr response Rescan command: ID %d %s." % (rstate['id'], rstate['status']))
 
     # Then wait for it to finish
     url = protocol + host + ":" + str(port) + webroot + "/api/v3/command/" + str(rstate['id'])
@@ -50,15 +50,15 @@ def rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=6
     r = requests.get(url, headers=headers)
     command = r.json()
     attempts = 0
-    while command['state'].lower() not in ['complete', 'completed'] and attempts < retries:
-        log.debug("State: %s." % (command['state']))
+    while command['status'].lower() not in ['complete', 'completed'] and attempts < retries:
+        log.debug("Status: %s." % (command['status']))
         time.sleep(delay)
         r = requests.get(url, headers=headers)
         command = r.json()
         attempts += 1
     log.debug(str(command))
-    log.info("Final state: %s." % (command['state']))
-    return command['state'].lower() in ['complete', 'completed']
+    log.info("Final status: %s." % (command['status']))
+    return command['status'].lower() in ['complete', 'completed']
 
 
 def getMovieInformation(host, port, webroot, apikey, protocol, movieid, log):
@@ -114,7 +114,7 @@ def renameMovie(host, port, webroot, apikey, protocol, movieid, log):
         pass
     log.debug(str(payload))
     log.debug(str(rstate))
-    log.info("Radarr response Rename command: ID %d %s." % (rstate['id'], rstate['state']))
+    log.info("Radarr response Rename command: ID %d %s." % (rstate['id'], rstate['status']))
 
 
 def backupSubs(inputpath, mp, log, extension=".backup"):
