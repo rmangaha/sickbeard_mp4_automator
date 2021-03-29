@@ -127,6 +127,13 @@ def restoreSubs(subs, log):
             log.exception("Unable to restore %s, deleting." % (k))
 
 
+def restoreSceneName(inputfile, scenename):
+    if scenename:
+        directory = os.path.dirname(inputfile)
+        extension = os.path.splitext(inputfile)[1]
+        os.rename(inputfile, os.path.join(directory, "%s%s" % (scenename, extension)))
+
+
 log = getLogger("RadarrPostProcess")
 
 log.info("Radarr extra script post processing started.")
@@ -143,6 +150,10 @@ original = os.environ.get('radarr_moviefile_scenename')
 imdbid = os.environ.get('radarr_movie_imdbid')
 tmdbid = os.environ.get('radarr_movie_tmdbid')
 movieid = int(os.environ.get('radarr_movie_id'))
+moviefileid = int(os.environ.get('radarr_moviefile_id'))
+scenename = os.environ.get('radarr_moviefile_scenename')
+releasegroup = os.environ.get('radarr_moviefile_releasegroup')
+
 moviefile_sourcefolder = os.environ.get('radarr_moviefile_sourcefolder')
 
 mp = MediaProcessor(settings)
@@ -187,6 +198,8 @@ try:
 
                 subs = backupSubs(success[0], mp, log)
 
+                # restoreSceneName(success[0], scenename)
+
                 if downloadedMoviesScanInProgress(host, port, webroot, apikey, protocol, moviefile_sourcefolder, log):
                     log.info("DownloadedMoviesScan command is in process for this movie, cannot wait for rescan but will queue")
                     rescanAndWait(host, port, webroot, apikey, protocol, movieid, log, retries=0)
@@ -215,6 +228,8 @@ try:
                         rescanAndWait(host, port, webroot, apikey, protocol, movieid, log)
 
                     movieinfo['monitored'] = True
+                    movieinfo['movieFile']['sceneName'] = scenename
+                    movieinfo['movieFile']['releaseGroup'] = releasegroup
 
                     # Then set that movie to monitored
                     log.debug("Sending PUT request with following payload:")
