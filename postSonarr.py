@@ -155,18 +155,10 @@ try:
     scenename = os.environ.get('sonarr_episodefile_scenename')
     episodefile_id = os.environ.get('sonarr_episodefile_id')
     episodefile_sourcefolder = os.environ.get('sonarr_episodefile_sourcefolder')
-
-    try:
-        episode = int(os.environ.get('sonarr_episodefile_episodenumbers'))
-    except:
-        episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
-
-    try:
-        episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs'))
-    except:
-        episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs').split(",")[0])
+    episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
+    episodeid = int(os.environ.get('sonarr_episodefile_episodeids').split(",")[0])
 except:
-    log.exception("Error setting up environment variables")
+    log.exception("Error reading environment variables")
     sys.exit(1)
 
 mp = MediaProcessor(settings)

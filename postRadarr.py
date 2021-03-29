@@ -145,16 +145,19 @@ settings = ReadSettings()
 
 log.debug(os.environ)
 
-inputfile = os.environ.get('radarr_moviefile_path')
-original = os.environ.get('radarr_moviefile_scenename')
-imdbid = os.environ.get('radarr_movie_imdbid')
-tmdbid = os.environ.get('radarr_movie_tmdbid')
-movieid = int(os.environ.get('radarr_movie_id'))
-moviefileid = int(os.environ.get('radarr_moviefile_id'))
-scenename = os.environ.get('radarr_moviefile_scenename')
-releasegroup = os.environ.get('radarr_moviefile_releasegroup')
-
-moviefile_sourcefolder = os.environ.get('radarr_moviefile_sourcefolder')
+try:
+    inputfile = os.environ.get('radarr_moviefile_path')
+    original = os.environ.get('radarr_moviefile_scenename')
+    imdbid = os.environ.get('radarr_movie_imdbid')
+    tmdbid = os.environ.get('radarr_movie_tmdbid')
+    movieid = int(os.environ.get('radarr_movie_id'))
+    moviefileid = int(os.environ.get('radarr_moviefile_id'))
+    scenename = os.environ.get('radarr_moviefile_scenename')
+    releasegroup = os.environ.get('radarr_moviefile_releasegroup')
+    moviefile_sourcefolder = os.environ.get('radarr_moviefile_sourcefolder')
+except:
+    log.exception("Error setting up environment variables")
+    sys.exit(1)
 
 mp = MediaProcessor(settings)
 
