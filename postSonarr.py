@@ -12,7 +12,7 @@ from resources.mediaprocessor import MediaProcessor
 
 def downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, episodefile_sourcefolder, log):
     headers = {'X-Api-Key': apikey}
-    url = protocol + host + ":" + str(port) + webroot + "/api/command"
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
     log.debug("Requesting list of commands in process")
     r = requests.get(url, headers=headers)
     commands = r.json()
@@ -21,7 +21,7 @@ def downloadedEpisodesScanInProgress(host, port, webroot, apikey, protocol, epis
     for c in commands:
         if c.get('name') == "DownloadedEpisodesScan":
             try:
-                if c['body']['path'] == episodefile_sourcefolder and c['state'] == 'started':
+                if c['body']['path'] == episodefile_sourcefolder and c['status'] == 'started':
                     log.debug("Found a matching path scan in progress %s" % (episodefile_sourcefolder))
                     return True
             except:
@@ -33,7 +33,7 @@ def rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log, retries=
     headers = {'X-Api-Key': apikey}
     # First trigger rescan
     payload = {'name': 'RescanSeries', 'seriesId': seriesid}
-    url = protocol + host + ":" + str(port) + webroot + "/api/command"
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
     r = requests.post(url, json=payload, headers=headers)
     rstate = r.json()
     try:
@@ -42,28 +42,28 @@ def rescanAndWait(host, port, webroot, apikey, protocol, seriesid, log, retries=
         pass
     log.debug(str(payload))
     log.debug(str(rstate))
-    log.info("Sonarr response RescanSeries command: ID %d %s." % (rstate['id'], rstate['state']))
+    log.info("Sonarr response RescanSeries command: ID %d %s." % (rstate['id'], rstate['status']))
 
     # Then wait for it to finish
-    url = protocol + host + ":" + str(port) + webroot + "/api/command/" + str(rstate['id'])
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command/" + str(rstate['id'])
     log.info("Requesting command status from Sonarr for command ID %d." % rstate['id'])
     r = requests.get(url, headers=headers)
     command = r.json()
     attempts = 0
-    while command['state'].lower() not in ['complete', 'completed'] and attempts < retries:
-        log.info("State: %s." % (command['state']))
+    while command['status'].lower() not in ['complete', 'completed'] and attempts < retries:
+        log.info("Status: %s." % (command['status']))
         time.sleep(delay)
         r = requests.get(url, headers=headers)
         command = r.json()
         attempts += 1
     log.debug(str(command))
-    log.info("Final state: %s." % (command['state']))
-    return command['state'].lower() in ['complete', 'completed']
+    log.info("Final status: %s." % (command['status']))
+    return command['status'].lower() in ['complete', 'completed']
 
 
 def getEpisodeInformation(host, port, webroot, apikey, protocol, episodeid, log):
     headers = {'X-Api-Key': apikey}
-    url = protocol + host + ":" + str(port) + webroot + "/api/episode/" + str(episodeid)
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/episode/" + str(episodeid)
     log.info("Requesting updated episode information from Sonarr for episode ID %d." % episodeid)
     r = requests.get(url, headers=headers)
     payload = r.json()
@@ -87,7 +87,7 @@ def renameSeries(host, port, webroot, apikey, protocol, seriesid, log):
     headers = {'X-Api-Key': apikey}
     # First trigger rescan
     payload = {'name': 'RenameSeries', 'seriesIds': [seriesid]}
-    url = protocol + host + ":" + str(port) + webroot + "/api/command"
+    url = protocol + host + ":" + str(port) + webroot + "/api/v3/command"
     r = requests.post(url, json=payload, headers=headers)
     rstate = r.json()
     try:
@@ -96,7 +96,7 @@ def renameSeries(host, port, webroot, apikey, protocol, seriesid, log):
         pass
     log.debug(str(payload))
     log.debug(str(rstate))
-    log.info("Sonarr response RenameSeries command: ID %d %s." % (rstate['id'], rstate['state']))
+    log.info("Sonarr response RenameSeries command: ID %d %s." % (rstate['id'], rstate['status']))
 
 
 def backupSubs(inputpath, mp, log, extension=".backup"):
