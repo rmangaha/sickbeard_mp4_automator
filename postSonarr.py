@@ -154,8 +154,16 @@ seriesid = int(os.environ.get('sonarr_series_id'))
 scenename = os.environ.get('sonarr_episodefile_scenename')
 episodefile_id = os.environ.get('sonarr_episodefile_id')
 episodefile_sourcefolder = os.environ.get('sonarr_episodefile_sourcefolder')
-episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
-episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs').split(",")[0])
+
+try:
+    episode = int(os.environ.get('sonarr_episodefile_episodenumbers'))
+except:
+    episode = int(os.environ.get('sonarr_episodefile_episodenumbers').split(",")[0])
+
+try:
+    episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs'))
+except:
+    episodeid = int(os.environ.get('sonarr_episodefile_episodeIDs').split(",")[0])
 
 mp = MediaProcessor(settings)
 
